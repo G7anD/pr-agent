@@ -265,6 +265,12 @@ class LiteLLMAIHandler(BaseAiHandler):
         stop=stop_after_attempt(MODEL_RETRIES),
     )
     async def chat_completion(self, model: str, system: str, user: str, temperature: float = 0.2, img_path: str = None):
+        if model.startswith("codex-cli/"):
+            from pr_agent.algo.ai_handlers.codex_cli_ai_handler import CodexCliAIHandler
+            if not hasattr(self, "_codex_cli_handler"):
+                self._codex_cli_handler = CodexCliAIHandler()
+            return await self._codex_cli_handler.chat_completion(model, system, user, temperature, img_path)
+
         try:
             resp, finish_reason = None, None
             deployment_id = self.deployment_id
