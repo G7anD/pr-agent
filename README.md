@@ -61,6 +61,29 @@ pr-agent --pr_url https://github.com/owner/repo/pull/123 review
 - [BitBucket app installation](https://qodo-merge-docs.qodo.ai/installation/bitbucket/)
 - [Azure DevOps setup](https://qodo-merge-docs.qodo.ai/installation/azure/)
 
+#### 5. Docker CLI with Codex (Community)
+Build a local Docker image that includes PR-Agent CLI and Codex CLI:
+```bash
+docker build -f docker/Dockerfile.codex_cli -t pr-agent-codex-cli:with-codex .
+```
+
+Run a GitLab review with Codex CLI model:
+```bash
+docker run --rm -it \
+  -e CONFIG__GIT_PROVIDER=gitlab \
+  -e GITLAB__URL="https://gitlab.example.com" \
+  -e GITLAB__AUTH_TYPE="private_token" \
+  -e GITLAB__PERSONAL_ACCESS_TOKEN="<PAT>" \
+  -e CONFIG__MODEL="codex-cli/gpt-5.3-codex" \
+  -e CONFIG__FALLBACK_MODELS='["codex-cli/gpt-5.3-codex-mini"]' \
+  -e CONFIG__CUSTOM_MODEL_MAX_TOKENS=200000 \
+  -v "$HOME/.codex:/root/.codex" \
+  pr-agent-codex-cli:with-codex \
+  --pr_url="https://gitlab.example.com/group/project/-/merge_requests/1" review
+```
+
+Note: authenticate locally first with `codex login`, then mount `$HOME/.codex` into the container.
+
 [//]: # (## News and Updates)
 
 [//]: # ()
