@@ -1,20 +1,17 @@
 [pr_reviewer]
-enable_review_labels_effort = true
-enable_auto_approval = true
+extra_instructions = """
+- Odoo 16.0 coding standards va OCA guidelines ga rioya qilsin
+- Security muammolar (SQL injection, XSS, command injection) alohida ko'rsatilsin
+- Performance muammolar belgilansin
+- Review natijasi o'zbek tilida yozilsin
+"""
 
-[github_app]
-pr_commands = [
-    "/describe --pr_description.publish_description_as_comment=true",
-    "/improve",
-    "/agentic_review"
-]
+[pr_description]
+extra_instructions = """
+- MR tavsifi o'zbek tilida yozilsin
+- O'zgarishlar qisqa va aniq tarzda ko'rsatilsin
+"""
 
-handle_push_trigger = true
-push_commands = [
-    "/improve",
-    "/agentic_review"
-]
-
-[review_agent]
-enabled = true
-publish_output = true
+[codex_cli]
+sandbox = "read-only"
+timeout = 180

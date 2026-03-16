@@ -24,12 +24,12 @@ disable_auto_feedback = false
 ai_timeout=120 # 2minutes
 skip_keys = []
 custom_reasoning_model = false # when true, disables system messages and temperature controls for models that don't support chat-style inputs
-response_language="en-US" # Language locales code for PR responses in ISO 3166 and ISO 639 format (e.g., "en-US", "it-IT", "zh-CN", ...)
+response_language="uz-UZ" # Language locales code for PR responses in ISO 3166 and ISO 639 format (e.g., "en-US", "it-IT", "zh-CN", ...)
 # token limits
 max_description_tokens = 500
 max_commits_tokens = 500
 max_model_tokens = 32000 # Limits the maximum number of tokens that can be used by any model, regardless of the model's default capabilities.
-custom_model_max_tokens=-1 # for models not in the default list
+custom_model_max_tokens=1000000 # for models not in the default list
 model_token_count_estimate_factor=0.3 # factor to increase the token count estimate, in order to reduce likelihood of model failure due to too many tokens - applicable only when requesting an accurate estimate.
 # patch extension logic
 patch_extension_skip_types =[".md",".txt"]
@@ -76,7 +76,7 @@ require_ticket_analysis_review=true
 # general options
 publish_output_no_suggestions=true # Set to "false" if you only need the reviewer's remarks (not labels, not "security audit", etc.) and want to avoid noisy "No major issues detected" comments.
 persistent_comment=true
-extra_instructions = ""
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
 num_max_findings = 3
 final_update_message = true
 # review labels
@@ -90,11 +90,12 @@ enable_intro_text=true
 enable_help_text=false # Determines whether to include help text in the PR review. Enabled by default.
 
 [pr_description] # /describe #
+enable_large_pr_handling=true
 publish_labels=false
 add_original_user_description=true
 generate_ai_title=false
 use_bullet_points=true
-extra_instructions = ""
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
 enable_pr_type=true
 final_update_message = true
 enable_help_text=false
@@ -122,7 +123,7 @@ commitable_code_suggestions = false
 dual_publishing_score_threshold=-1 # -1 to disable, [0-10] to set the threshold (>=) for publishing a code suggestion both in a table and as commitable
 focus_only_on_problems=true
 #
-extra_instructions = ""
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
 enable_help_text=false
 enable_chat_text=false
 persistent_comment=true
@@ -161,14 +162,14 @@ enable_help_text=false
 
 
 [pr_add_docs] # /add_docs #
-extra_instructions = ""
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
 docs_style = "Sphinx" # "Google Style with Args, Returns, Attributes...etc", "Numpy Style", "Sphinx Style", "PEP257", "reStructuredText"
 file = ""              # in case there are several components with the same name, you can specify the relevant file
 class_name = ""        # in case there are several methods with the same name in the same file, you can specify the relevant class name
 
 [pr_update_changelog] # /update_changelog #
 push_changelog_changes=false
-extra_instructions = ""
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
 add_pr_link=true
 skip_ci_on_push=true
 
@@ -176,7 +177,7 @@ skip_ci_on_push=true
 enable_help_text=true
 
 [pr_test] # /test #
-extra_instructions = ""
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
 testing_framework = "" # specify the testing framework you want to use
 num_tests=3            # number of tests to generate. max 5.
 avoid_mocks=true       # if true, the generated tests will prefer to use real objects instead of mocks
@@ -186,7 +187,7 @@ enable_help_text=false
 
 [pr_improve_component] # /improve_component #
 num_code_suggestions=4
-extra_instructions = ""
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
 file = ""              # in case there are several components with the same name, you can specify the relevant file
 class_name = ""        # in case there are several methods with the same name in the same file, you can specify the relevant class name
 
@@ -357,7 +358,7 @@ enable_global_best_practices = false
 [auto_best_practices]
 enable_auto_best_practices = true # public - general flag to disable all auto best practices usage
 utilize_auto_best_practices = true # public - disable usage of auto best practices in the 'improve' tool
-extra_instructions = "" # public - extra instructions to the auto best practices generation prompt
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API" # public - extra instructions to the auto best practices generation prompt
 content = ""
 max_patterns = 5 # max number of patterns to be detected
 
