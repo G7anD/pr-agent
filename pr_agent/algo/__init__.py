@@ -41,6 +41,7 @@ MAX_TOKENS = {
     'codex-cli/gpt-5.1-codex-mini': 200000,
     'codex-cli/gpt-5.2-codex': 400000,
     'codex-cli/gpt-5.4-codex': 272000,
+    'codex-cli/gpt-5.3-codex': 400000,
     'gpt-5.2': 400000,  # 400K, but may be limited by config.max_model_tokens
     'gpt-5.2-2025-12-11': 400000,  # 400K, but may be limited by config.max_model_tokens
     'gpt-5.2-chat-latest': 128000,  # 128K, but may be limited by config.max_model_tokens
@@ -263,6 +264,7 @@ NO_SUPPORT_TEMPERATURE_MODELS = [
     "codex-cli/gpt-5.1-codex",
     "codex-cli/gpt-5.1-codex-mini",
     "codex-cli/gpt-5.2-codex",
+    "codex-cli/gpt-5.3-codex",
     "codex-cli/gpt-5.4-codex"
 ]
 

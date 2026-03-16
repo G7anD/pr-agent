@@ -5,7 +5,7 @@
 [config]
 # models
 model="gpt-5.4-2026-03-05"
-fallback_models=["o4-mini"]
+fallback_models=["codex-cli/gpt-5.1-codex"]
 #model_reasoning="o4-mini" # dedicated reasoning model for self-reflection
 #model_weak="gpt-4o" # optional, a weaker model to use for some easier tasks
 # CLI
@@ -103,7 +103,7 @@ publish_labels=false
 add_original_user_description=true
 generate_ai_title=false
 use_bullet_points=true
-extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API"
+extra_instructions = "Barcha javoblarni o'zbek tilida yoz, lekin texnik terminlarni (model, field, view, wizard, method, decorator, ORM, API, commit, merge, branch, refactor, bug, fix, feature, security, performance, constraint, compute, onchange) ingliz tilida qoldir. Bu Odoo 16.0 HIS (Hospital Information System) loyihasi. Quyidagilarga e'tibor ber: 1) Odoo OCA coding guidelines, 2) Security: SQL injection, XSS, access rights, ir.model.access, ir.rule, sudo() ishlatilishi, 3) Performance: N+1 queries, batch processing, compute field larda store=True, prefetch, 4) Odoo best practices: api.depends, onchange vs compute, _sql_constraints, deprecated API. 5) Mermaid diagramlarda node nomlari ichida backtick belgisi ishlatma, oddiy matn yoz"
 enable_pr_type=true
 final_update_message = true
 enable_help_text=false
@@ -328,8 +328,8 @@ service_callback = []
 [codex_cli]
 # cli_path = "codex"        # path to the Codex CLI binary
 # model = ""                # override model (leave empty to use config.model with prefix stripped)
-# timeout = 180              # timeout in seconds for CLI invocations
-# sandbox = "read-only"     # codex sandbox mode (read-only, workspace-write, danger-full-access)
+timeout = 300              # timeout in seconds for CLI invocations
+sandbox = "read-only"     # codex sandbox mode (read-only, workspace-write, danger-full-access)
 # codex_home = ""           # optional CODEX_HOME location to reuse pre-authenticated sessions
 
 [pr_similar_issue]
