@@ -56,7 +56,7 @@ class PRQuestions:
                             'config': dict(get_settings().config)}
         get_logger().debug("Relevant configs", artifacts=relevant_configs)
         if get_settings().config.publish_output:
-            self.git_provider.publish_comment("Preparing answer...", is_temporary=True)
+            self.git_provider.publish_comment("🤔 Abdullajon savolingiz ustida o'ylayapti... Javob tayyor bo'ladi! 💭", is_temporary=True)
 
         # identify image
         img_path = self.identify_image_in_comment()

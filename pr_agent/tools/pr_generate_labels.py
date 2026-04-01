@@ -70,7 +70,7 @@ class PRGenerateLabels:
         try:
             get_logger().info(f"Generating a PR labels {self.pr_id}")
             if get_settings().config.publish_output:
-                self.git_provider.publish_comment("Preparing PR labels...", is_temporary=True)
+                self.git_provider.publish_comment("🏷️ Abdullajon teglar tanlayapti... Har bir MR o'z yorlig'ini oladi! 🎯", is_temporary=True)
 
             await retry_with_fallback_models(self._prepare_prediction)
 

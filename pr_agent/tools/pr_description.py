@@ -99,7 +99,7 @@ class PRDescription:
                                 'config': dict(get_settings().config)}
             get_logger().debug("Relevant configs", artifact=relevant_configs)
             if get_settings().config.publish_output and not get_settings().config.get('is_auto_command', False):
-                self.git_provider.publish_comment("Preparing PR description...", is_temporary=True)
+                self.git_provider.publish_comment("📝 Abdullajon MR tavsifini yozyapti... Bir zum sabr qiling! ✍️", is_temporary=True)
 
             # ticket extraction if exists
             await extract_and_cache_pr_tickets(self.git_provider, self.vars)

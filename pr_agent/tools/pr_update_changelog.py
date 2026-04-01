@@ -72,7 +72,7 @@ class PRUpdateChangelog:
             return
 
         if get_settings().config.publish_output:
-            self.git_provider.publish_comment("Preparing changelog updates...", is_temporary=True)
+            self.git_provider.publish_comment("📋 Abdullajon changelog yangilayapti... Tarix yozilyapti! 🕰️", is_temporary=True)
 
         await retry_with_fallback_models(self._prepare_prediction, model_type=ModelType.WEAK)
 

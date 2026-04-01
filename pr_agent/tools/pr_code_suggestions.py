@@ -86,8 +86,8 @@ class PRCodeSuggestions:
                                           self.pr_code_suggestions_prompt_system,
                                           self.pr_code_suggestions_prompt_user)
 
-        self.progress = f"## Generating PR code suggestions\n\n"
-        self.progress += f"""\nWork in progress ...<br>\n<img src="https://codium.ai/images/pr_agent/dual_ball_loading-crop.gif" width=48>"""
+        self.progress = f"## 💡 Abdullajon kod takliflarini tayyorlayapti\n\n"
+        self.progress += f"""\nBir oz kuting, eng yaxshi takliflarni tanlayapman... ⏳<br>\n<img src="https://codium.ai/images/pr_agent/dual_ball_loading-crop.gif" width=48>"""
         self.progress_response = None
 
     async def run(self):
@@ -107,7 +107,7 @@ class PRCodeSuggestions:
                 if self.git_provider.is_supported("gfm_markdown"):
                     self.progress_response = self.git_provider.publish_comment(self.progress)
                 else:
-                    self.git_provider.publish_comment("Preparing suggestions...", is_temporary=True)
+                    self.git_provider.publish_comment("💡 Abdullajon takliflar tayyorlayapti... Yaxshi kod yozganmisiz, ko'ramiz! 😏", is_temporary=True)
 
             # # call the model to get the suggestions, and self-reflect on them
             # if not self.is_extended:
