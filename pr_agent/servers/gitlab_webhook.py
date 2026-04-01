@@ -1,3 +1,4 @@
+import asyncio
 import copy
 import json
 import os
@@ -270,7 +271,7 @@ async def gitlab_webhook(background_tasks: BackgroundTasks, request: Request):
 
                 await handle_request(url, body, log_context, sender_id, notify=lambda: provider.add_eyes_reaction(comment_id))
 
-    background_tasks.add_task(inner, request_json)
+    asyncio.create_task(inner(request_json))
     end_time = datetime.now()
     get_logger().info(f"Processing time: {end_time - start_time}", request=request_json)
     return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder({"message": "success"}))
