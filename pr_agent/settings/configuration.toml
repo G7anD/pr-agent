@@ -98,7 +98,6 @@ enable_intro_text=true
 enable_help_text=false # Determines whether to include help text in the PR review. Enabled by default.
 
 [pr_description] # /describe #
-enable_large_pr_handling=true
 publish_labels=false
 add_original_user_description=true
 generate_ai_title=false
