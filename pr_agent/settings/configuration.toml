@@ -329,6 +329,7 @@ service_callback = []
 # cli_path = "claude"  # path to the Claude Code CLI binary
 # model = ""           # override model (leave empty to use config.model with prefix stripped)
 # timeout = 120        # timeout in seconds for CLI invocations
+# effort = ""          # effort level: "low", "medium", "high", "max" (maps to --effort flag)
 
 [pr_similar_issue]
 skip_comments = false

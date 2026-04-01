@@ -47,3 +47,9 @@ ADD tests tests
 FROM base AS cli
 ADD pr_agent pr_agent
 ENTRYPOINT ["python", "pr_agent/cli.py"]
+
+FROM base AS cli_claude_code
+RUN apt-get update && apt-get install --no-install-recommends -y nodejs npm && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN npm install -g @anthropic-ai/claude-code
+ADD pr_agent pr_agent
+ENTRYPOINT ["python", "pr_agent/cli.py"]

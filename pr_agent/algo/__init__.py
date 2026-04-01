@@ -236,7 +236,7 @@ MAX_TOKENS = {
     "mistral/codestral-mamba-latest": 256000,
     "codestral/codestral-latest": 8191,
     "codestral/codestral-2405": 8191,
-    'claude-code/claude-opus-4-6': 200000,
+    'claude-code/claude-opus-4-6': 1000000,  # 1M context via Claude Code CLI
     'claude-code/claude-sonnet-4-5': 200000,
     'claude-code/claude-sonnet-4': 200000,
     'claude-code/claude-haiku-4-5': 200000,

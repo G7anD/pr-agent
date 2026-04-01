@@ -30,6 +30,7 @@ class ClaudeCodeAIHandler(BaseAiHandler):
         self.cli_path = get_settings().get("claude_code.cli_path", "claude")
         self.timeout = get_settings().get("claude_code.timeout", 120)
         self.model_override = get_settings().get("claude_code.model", "")
+        self.effort = get_settings().get("claude_code.effort", "")
 
     @property
     def deployment_id(self):
@@ -60,6 +61,9 @@ class ClaudeCodeAIHandler(BaseAiHandler):
 
             if effective_model:
                 cmd.extend(["--model", effective_model])
+
+            if self.effort:
+                cmd.extend(["--effort", self.effort])
 
             if system:
                 cmd.extend(["--system-prompt", system])
