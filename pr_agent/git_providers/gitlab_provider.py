@@ -84,7 +84,7 @@ class GitLabProvider(GitProvider):
         Tries target branch first, then source branch. Always returns text.
         """
         try:
-            proj = self.gl.projects.get(self.id_project)
+            proj = self._get_project()
         except Exception:
             return {}
 
@@ -323,7 +323,7 @@ class GitLabProvider(GitProvider):
         if not repo_git_url: #Use PR url as context
             repo_path = self._get_project_path_from_pr_or_issue_url(self.pr_url)
             try:
-                desired_branch = self.gl.projects.get(self.id_project).default_branch
+                desired_branch = self._get_project().default_branch
             except Exception as e:
                 get_logger().exception(f"Cannot get PR: {self.pr_url} default branch. Tried project ID: {self.id_project}")
                 return ("", "")
@@ -349,7 +349,7 @@ class GitLabProvider(GitProvider):
 
     def get_pr_file_content(self, file_path: str, branch: str) -> str:
         try:
-            file_obj = self.gl.projects.get(self.id_project).files.get(file_path, branch)
+            file_obj = self._get_project().files.get(file_path, branch)
             content = file_obj.decode()
             return decode_if_bytes(content)
         except GitlabGetError:
@@ -363,7 +363,7 @@ class GitLabProvider(GitProvider):
     def create_or_update_pr_file(self, file_path: str, branch: str, contents="", message="") -> None:
         """Create or update a file in the GitLab repository."""
         try:
-            project = self.gl.projects.get(self.id_project)
+            project = self._get_project()
 
             if not message:
                 action = "Update" if contents else "Create"
@@ -768,7 +768,7 @@ class GitLabProvider(GitProvider):
         return self.mr.title
 
     def get_languages(self):
-        languages = self.gl.projects.get(self.id_project).languages()
+        languages = self._get_project().languages()
         return languages
 
     def get_pr_branch(self):
@@ -791,8 +791,8 @@ class GitLabProvider(GitProvider):
 
     def get_repo_settings(self):
         try:
-            main_branch = self.gl.projects.get(self.id_project).default_branch
-            contents = self.gl.projects.get(self.id_project).files.get(file_path='.pr_agent.toml', ref=main_branch).decode()
+            main_branch = self._get_project().default_branch
+            contents = self._get_project().files.get(file_path='.pr_agent.toml', ref=main_branch).decode()
             return contents
         except Exception:
             return ""
@@ -808,7 +808,7 @@ class GitLabProvider(GitProvider):
                 get_logger().warning("Cannot add eyes reaction: merge request ID is not set.")
                 return None
 
-            mr = self.gl.projects.get(self.id_project).mergerequests.get(self.id_mr)
+            mr = self._get_project().mergerequests.get(self.id_mr)
             comment = mr.notes.get(issue_comment_id)
 
             if not comment:
@@ -829,7 +829,7 @@ class GitLabProvider(GitProvider):
                 get_logger().warning("Cannot remove reaction: merge request ID is not set.")
                 return False
 
-            mr = self.gl.projects.get(self.id_project).mergerequests.get(self.id_mr)
+            mr = self._get_project().mergerequests.get(self.id_mr)
             comment = mr.notes.get(issue_comment_id)
 
             if not comment:
@@ -873,9 +873,19 @@ class GitLabProvider(GitProvider):
         # Return the path before 'merge_requests' and the ID
         return project_path, mr_id
 
+    def _get_project(self):
+        """Get project by ID, with search fallback for path-based IDs."""
+        try:
+            return self.gl.projects.get(self.id_project)
+        except Exception:
+            projects = self.gl.projects.list(search=self.id_project.split("/")[-1])
+            proj = next((p for p in projects if p.path_with_namespace == self.id_project), None)
+            if not proj:
+                raise ValueError(f"Project not found: {self.id_project}")
+            return proj
+
     def _get_merge_request(self):
-        mr = self.gl.projects.get(self.id_project).mergerequests.get(self.id_mr)
-        return mr
+        return self._get_project().mergerequests.get(self.id_mr)
 
     def get_user_id(self):
         return None
@@ -894,7 +904,7 @@ class GitLabProvider(GitProvider):
         return self.mr.labels
 
     def get_repo_labels(self):
-        return self.gl.projects.get(self.id_project).labels.list()
+        return self._get_project().labels.list()
 
     def get_commit_messages(self):
         """
