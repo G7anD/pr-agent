@@ -27,7 +27,7 @@ from pr_agent.log import get_logger
 from pr_agent.servers.help import HelpMessage
 from pr_agent.tools.ticket_pr_compliance_check import (
     extract_and_cache_pr_tickets, extract_ticket_links_from_pr_description,
-    extract_tickets)
+    extract_tickets, find_jira_tickets)
 
 
 class PRDescription:
@@ -130,6 +130,16 @@ class PRDescription:
                         "publish_file_comments") or not get_settings().pr_description.inline_file_summary:
                     pr_body += "\n\n" + changes_walkthrough + "___\n\n"
             get_logger().debug("PR output", artifact={"title": pr_title, "body": pr_body})
+
+            # Branch nomidan Jira ticket topib, describe boshiga link qo'yish
+            jira_base_url = (get_settings().pr_description.get("jira_base_url", "") or "").rstrip("/")
+            if jira_base_url:
+                branch_name = self.vars.get("branch", "") or ""
+                jira_tickets = find_jira_tickets(branch_name)
+                if jira_tickets:
+                    jira_tickets.sort(key=lambda t: branch_name.find(t) if t in branch_name else 999)
+                    links = ", ".join(f"[{t}]({jira_base_url}/browse/{t})" for t in jira_tickets)
+                    pr_body = "> 🎯 **Jira Task:** " + links + "\n\n" + pr_body
 
             # Add help text if gfm_markdown is supported
             if self.git_provider.is_supported("gfm_markdown") and get_settings().pr_description.enable_help_text:
