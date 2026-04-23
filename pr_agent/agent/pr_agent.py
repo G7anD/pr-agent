@@ -20,6 +20,7 @@ from pr_agent.tools.pr_questions import PRQuestions
 from pr_agent.tools.pr_reviewer import PRReviewer
 from pr_agent.tools.pr_similar_issue import PRSimilarIssue
 from pr_agent.tools.pr_update_changelog import PRUpdateChangelog
+from pr_agent.tools.pr_release_notes import PRReleaseNotes
 
 command2class = {
     "auto_review": PRReviewer,
@@ -34,6 +35,7 @@ command2class = {
     "ask_question": PRQuestions,
     "ask_line": PR_LineQuestions,
     "update_changelog": PRUpdateChangelog,
+    "release_notes": PRReleaseNotes,
     "config": PRConfig,
     "settings": PRConfig,
     "help": PRHelpMessage,

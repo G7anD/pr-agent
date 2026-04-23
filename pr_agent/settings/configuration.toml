@@ -381,3 +381,17 @@ pr_commands = [
     "/review",
     "/improve",
 ]
+
+[pr_release_notes]
+# Claude model used specifically for /release_notes. Falls back to opus-4-6 if 4-7 unavailable.
+model = "claude-code/claude-opus-4-7"
+fallback_model = "claude-code/claude-opus-4-6"
+effort = "max"
+# Extra instructions appended to the system prompt (e.g. glossary of Russian terms specific to Aurora+).
+extra_instructions = ""
+# Affine workspace ID (overridden at runtime via AFFINE_WORKSPACE_ID env var).
+affine_workspace_id = ""
+# Local markdown dump path inside container - audit trail.
+local_output_dir = "/app/release_notes_output"
+# Timeout (seconds) for affine-cli upload. If exceeded, MR comment fallback is used.
+timeout_seconds_affine = 60

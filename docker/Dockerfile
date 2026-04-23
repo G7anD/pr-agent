@@ -9,6 +9,9 @@ ADD docs docs
 RUN pip install --no-cache-dir . && rm pyproject.toml requirements.txt
 ENV PYTHONPATH=/app
 
+FROM golang:1.25-alpine AS affine-cli-build
+RUN apk add --no-cache git && go install github.com/tomohiro-owada/affine-cli@latest
+
 FROM base AS github_app
 ADD pr_agent pr_agent
 CMD ["python", "-m", "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "pr_agent/servers/gunicorn_config.py", "--forwarded-allow-ips", "*", "pr_agent.servers.github_app:app"]
@@ -57,5 +60,9 @@ ENTRYPOINT ["python", "pr_agent/cli.py"]
 FROM base AS gitlab_webhook_claude_code
 RUN apt-get update && apt-get install --no-install-recommends -y nodejs npm && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN npm install -g @anthropic-ai/claude-code
+# affine-cli (github.com/tomohiro-owada/affine-cli) - used by /release_notes tool to publish to Affine
+COPY --from=affine-cli-build /go/bin/affine-cli /usr/local/bin/affine-cli
+RUN ln -sf /usr/local/bin/affine-cli /usr/local/bin/affine
+RUN mkdir -p /app/release_notes_output
 ADD pr_agent pr_agent
 CMD ["python", "pr_agent/servers/gitlab_webhook.py"]
