@@ -82,6 +82,40 @@ def _resolve_env() -> Tuple[str, str, str, str, str]:
     return base, token, workspace, cli, public_base
 
 
+async def _publish_public(cli: str, doc_id: str, env: dict, timeout: int = 30) -> bool:
+    """Mark doc as publicly accessible. Returns True on success, False on any failure."""
+    logger = get_logger()
+    try:
+        argv = [cli, "doc", "publish", "--doc-id", doc_id, "--mode", "Page"]
+        proc = await _aiosub.create_subprocess_exec(
+            *argv,
+            stdin=_aiosub.DEVNULL,
+            stdout=_aiosub.PIPE,
+            stderr=_aiosub.PIPE,
+            env=env,
+        )
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            try:
+                await proc.wait()
+            except Exception:
+                pass
+            logger.warning(f"affine_publisher: publish timed out after {timeout}s")
+            return False
+        if proc.returncode != 0:
+            stderr = (stderr_b or b"").decode("utf-8", errors="replace").strip()
+            logger.warning(f"affine_publisher: publish exit={proc.returncode} stderr={stderr[:300]!r}")
+            return False
+        stdout = (stdout_b or b"").decode("utf-8", errors="replace")
+        # Sanity check: response should mention public:true; if not we still consider OK.
+        return '"public": true' in stdout or '"public":true' in stdout or proc.returncode == 0
+    except Exception as e:
+        logger.warning(f"affine_publisher: publish error - {e}")
+        return False
+
+
 async def publish_to_affine(title: str, markdown: str, timeout: int = 60) -> Optional[str]:
     logger = get_logger()
     base, token, workspace, cli, public_base = _resolve_env()
@@ -157,6 +191,15 @@ async def publish_to_affine(title: str, markdown: str, timeout: int = 60) -> Opt
                 f"stdout={stdout[:300]!r} stderr={stderr[:300]!r}"
             )
             return None
+
+        # Best-effort: publish the doc so the URL is reachable without login.
+        # Failure here is non-fatal — we still return the URL (auth required).
+        if doc_id:
+            published = await _publish_public(cli, doc_id, env, timeout=30)
+            if published:
+                logger.info(f"affine_publisher: published doc_id={doc_id} (public access enabled)")
+            else:
+                logger.warning(f"affine_publisher: doc_id={doc_id} created but publish step failed; URL will require auth")
 
         logger.info(f"affine_publisher: success url={url}")
         return url
