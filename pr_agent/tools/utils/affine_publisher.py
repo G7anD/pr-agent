@@ -63,7 +63,14 @@ def _extract_doc_id(text: str) -> Optional[str]:
     return None
 
 
-def _resolve_env() -> Tuple[str, str, str, str]:
+def _resolve_env() -> Tuple[str, str, str, str, str]:
+    """Returns (base, token, workspace, cli, public_base).
+
+    `base` is the URL affine-cli uses to talk to Affine (often an internal/docker
+    network URL like http://172.17.0.1:3010). `public_base` is what we embed in
+    the MR comment for humans to click (e.g. https://aff.caretech.uz). If
+    AFFINE_PUBLIC_URL is unset, it defaults to AFFINE_BASE_URL.
+    """
     base = os.environ.get("AFFINE_BASE_URL", "").strip()
     token = (
         os.environ.get("AFFINE_API_TOKEN", "").strip()
@@ -71,12 +78,13 @@ def _resolve_env() -> Tuple[str, str, str, str]:
     )
     workspace = os.environ.get("AFFINE_WORKSPACE_ID", "").strip()
     cli = os.environ.get("AFFINE_CLI", "affine-cli").strip()
-    return base, token, workspace, cli
+    public_base = os.environ.get("AFFINE_PUBLIC_URL", "").strip() or base
+    return base, token, workspace, cli, public_base
 
 
 async def publish_to_affine(title: str, markdown: str, timeout: int = 60) -> Optional[str]:
     logger = get_logger()
-    base, token, workspace, cli = _resolve_env()
+    base, token, workspace, cli, public_base = _resolve_env()
 
     if not (base and token and workspace):
         logger.info(
@@ -134,12 +142,15 @@ async def publish_to_affine(title: str, markdown: str, timeout: int = 60) -> Opt
             )
             return None
 
-        url = _find_url(stdout, base_url=base) or _find_url(stderr, base_url=base)
+        # Always prefer constructing the URL from doc_id against the *public*
+        # base, because stdout URLs (if any) will use the internal API URL.
+        url = None
+        doc_id = _extract_doc_id(stdout)
+        if doc_id:
+            url = f"{public_base.rstrip('/')}/workspace/{workspace}/{doc_id}"
+            logger.info(f"affine_publisher: constructed public URL: {url}")
         if not url:
-            doc_id = _extract_doc_id(stdout)
-            if doc_id:
-                url = f"{base.rstrip('/')}/workspace/{workspace}/{doc_id}"
-                logger.info(f"affine_publisher: constructed URL from doc_id: {url}")
+            url = _find_url(stdout, base_url=public_base) or _find_url(stderr, base_url=public_base)
         if not url:
             logger.warning(
                 f"affine_publisher: no URL / doc_id in affine output. "

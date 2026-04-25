@@ -1,5 +1,6 @@
 import copy
 import os
+import re
 from datetime import datetime, date
 from functools import partial
 from typing import Optional
@@ -35,6 +36,23 @@ def _format_ru_date(dt) -> str:
         except Exception:
             return dt
     return f"{dt.day} {RU_MONTHS[dt.month - 1]} {dt.year}"
+
+
+# pr-agent's _handle_request auto-injects this when config.response_language is set
+# (e.g. "uz-UZ" for Uzbek). For /release_notes the output MUST be Russian, so we strip
+# the auto-injection before rendering the prompt.
+_LANG_INJECTION_RE = re.compile(
+    r"(?:\n*={3,}\n*\n?In addition,\s*)?Your response MUST be written in the language "
+    r"corresponding to locale code:\s*'[^']*'\.\s*This is crucial\.\s*",
+    re.DOTALL,
+)
+
+
+def _strip_lang_injection(extra_instructions: str) -> str:
+    if not extra_instructions:
+        return ""
+    cleaned = _LANG_INJECTION_RE.sub("", extra_instructions).strip()
+    return cleaned
 
 
 class PRReleaseNotes:
@@ -85,7 +103,9 @@ class PRReleaseNotes:
             "commits_summary": commits_summary,
             "commits_detailed_str": commits_detailed_str,
             "full_diff": full_diff,
-            "extra_instructions": get_settings().pr_release_notes.get("extra_instructions", "") or "",
+            "extra_instructions": _strip_lang_injection(
+                get_settings().pr_release_notes.get("extra_instructions", "") or ""
+            ),
             "mr_url": pr_url,
             "today_ru": _format_ru_date(date.today()),
         }
