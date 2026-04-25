@@ -13,3 +13,10 @@ build/
 docs/.cache/
 .qodo
 poetry.lock
+
+# pr-agent runtime artifacts (contain secrets, never commit)
+ops/run-pr-agent.sh
+ops/build.log
+ops/pr-agent-inspect-before-rebuild.json
+*.bak-*
+release_notes_output/
