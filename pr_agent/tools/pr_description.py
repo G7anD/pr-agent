@@ -30,6 +30,74 @@ from pr_agent.tools.ticket_pr_compliance_check import (
     extract_tickets, find_jira_tickets)
 
 
+# GitLab vs Jira username farqlari (faqat divergence'lar — qolganlari teng deb olinadi).
+# Yangi a'zo qo'shsangiz va GitLab/Jira nicki teng bo'lsa shu yerga qo'shmang.
+_GITLAB_TO_JIRA_USERNAME_OVERRIDES = {
+    "j.xamidullayev": "j.hamidullaev",
+}
+
+
+def _resolve_jira_assignee(git_provider):
+    """MR muallifining GitLab usernamesini Jira ekvivalentiga aylantiradi.
+
+    None qaytarsa, assignee qo'yilmaydi (Unassigned)."""
+    try:
+        mr = getattr(git_provider, "mr", None)
+        if mr is None:
+            return None
+        author = getattr(mr, "author", None) or {}
+        if isinstance(author, dict):
+            gl_user = author.get("username") or ""
+        else:
+            gl_user = getattr(author, "username", "") or ""
+        if not gl_user:
+            return None
+        return _GITLAB_TO_JIRA_USERNAME_OVERRIDES.get(gl_user, gl_user)
+    except Exception:
+        return None
+
+
+async def _create_jira_task_from_mr(create_url, summary, description, source_url, component, assignee=None):
+    """jira-automation /create-issue ga POST qiladi, yangi Jira issue keyini qaytaradi yoki None.
+
+    Agar assignee berilgan bo'lsa avval u bilan urinadi, muvaffaqiyatsiz bo'lsa
+    (foydalanuvchi Jira'da yo'q) — assigneesiz qaytadan urinadi, shunda task yo'qolmaydi.
+
+    Idempotency chaqiruvchi tomonida (keyingi /describe'da key MR description ichida
+    topiladi va ikkinchi marta yaratilmaydi)."""
+    summary = (summary or "").strip()
+    if not summary:
+        return None
+    base_body = {"summary": summary[:240], "component": component}
+    if description:
+        base_body["description"] = description.strip()[:2000]
+    if source_url:
+        base_body["source_url"] = source_url
+    attempts = []
+    if assignee:
+        with_assignee = dict(base_body)
+        with_assignee["assignee"] = assignee
+        attempts.append(("assignee=" + assignee, with_assignee))
+    attempts.append(("no assignee", base_body))
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=15) as client:
+            for label, body in attempts:
+                resp = await client.post(create_url, json=body)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    key = data.get("key")
+                    if key:
+                        get_logger().info(f"Yangi Jira task auto-yaratildi ({label}): {key}")
+                        return key
+                    get_logger().warning(f"Jira create response 'key' yo'q ({label}): {data}")
+                else:
+                    get_logger().warning(f"Jira create HTTP {resp.status_code} ({label}): {resp.text[:300]}")
+    except Exception as exc:
+        get_logger().error(f"Jira create exception: {exc}")
+    return None
+
+
 class PRDescription:
     def __init__(self, pr_url: str, args: list = None,
                  ai_handler: partial[BaseAiHandler,] = LiteLLMAIHandler):
@@ -131,15 +199,33 @@ class PRDescription:
                     pr_body += "\n\n" + changes_walkthrough + "___\n\n"
             get_logger().debug("PR output", artifact={"title": pr_title, "body": pr_body})
 
-            # Branch nomidan Jira ticket topib, describe boshiga link qo'yish
+            # Branch yoki MR description'da Jira ticket bo'lsa link qo'yish.
+            # Bo'lmasa va auto-create yoqilgan bo'lsa — yangi Jira task yaratib link qo'yish.
             jira_base_url = (get_settings().pr_description.get("jira_base_url", "") or "").rstrip("/")
             if jira_base_url:
                 branch_name = self.vars.get("branch", "") or ""
-                jira_tickets = find_jira_tickets(branch_name)
+                existing_desc = self.vars.get("description", "") or ""
+                jira_tickets = find_jira_tickets(f"{branch_name}\n{existing_desc}")
+                auto_created = False
+                if not jira_tickets:
+                    create_url = (get_settings().pr_description.get("jira_auto_create_url", "") or "").rstrip("/")
+                    if create_url:
+                        new_key = await _create_jira_task_from_mr(
+                            create_url=create_url,
+                            summary=self.vars.get("title", "") or branch_name or "GitLab MR",
+                            description=existing_desc,
+                            source_url=getattr(self.git_provider, "pr_url", "") or "",
+                            component=get_settings().pr_description.get("jira_auto_create_component", "dev"),
+                            assignee=_resolve_jira_assignee(self.git_provider),
+                        )
+                        if new_key:
+                            jira_tickets = [new_key]
+                            auto_created = True
                 if jira_tickets:
                     jira_tickets.sort(key=lambda t: branch_name.find(t) if t in branch_name else 999)
                     links = ", ".join(f"[{t}]({jira_base_url}/browse/{t})" for t in jira_tickets)
-                    pr_body = "> 🎯 **Jira Task:** " + links + "\n\n" + pr_body
+                    label = "**Jira Task (auto):**" if auto_created else "**Jira Task:**"
+                    pr_body = f"> 🎯 {label} " + links + "\n\n" + pr_body
 
             # Add help text if gfm_markdown is supported
             if self.git_provider.is_supported("gfm_markdown") and get_settings().pr_description.enable_help_text:
