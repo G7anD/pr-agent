@@ -219,3 +219,119 @@ class PRReleaseNotesTag:
         if last_error:
             raise last_error
         return None
+
+    # ---- file I/O ----
+
+    def _marker_path(self) -> str:
+        return os.path.join(self.output_dir, f".published-{self.tag}")
+
+    def _write_marker(self) -> None:
+        os.makedirs(self.output_dir, exist_ok=True)
+        with open(self._marker_path(), "w") as f:
+            f.write("")
+
+    def _save_local(self, markdown: str) -> Optional[str]:
+        try:
+            os.makedirs(self.output_dir, exist_ok=True)
+            path = os.path.join(self.output_dir, f"{self.tag}.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(markdown)
+            get_logger().info(f"release_notes_tag: local backup saved at {path}")
+            return path
+        except Exception as e:
+            get_logger().warning(f"release_notes_tag: local save failed — {e}")
+            return None
+
+    # ---- publishing ----
+
+    @staticmethod
+    def _build_release_description(body_markdown: str, affine_url: Optional[str]) -> str:
+        if affine_url:
+            return f"> 📄 [Полная версия в Affine]({affine_url})\n\n{body_markdown}"
+        return body_markdown
+
+    def _publish_telegram(self, tldr: str, affine_url: Optional[str]) -> None:
+        bot_token = os.environ.get(get_settings().release_notes.telegram.bot_token_env)
+        chat_id = os.environ.get(get_settings().release_notes.telegram.channel_id_env)
+        if not bot_token or not chat_id:
+            get_logger().warning("release_notes_tag: telegram env vars missing, skipping")
+            return
+        text = replace_affine_placeholder(tldr, affine_url)
+        # The TL;DR block is authored by Claude using simple Markdown (a single
+        # link at the bottom). We send it as-is and rely on the Telegram
+        # "Markdown" parse mode rather than the stricter MarkdownV2, since the
+        # version tag (e.g. "2026.06.7") and headline punctuation would
+        # otherwise require pervasive backslash escaping that distorts the
+        # human-visible text.
+        pub = TelegramPublisher(bot_token=bot_token, timeout=self.telegram_timeout)
+        try:
+            pub.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode="Markdown",
+                disable_web_page_preview=False,
+            )
+            get_logger().info(f"release_notes_tag: telegram delivered to {chat_id}")
+        except TelegramDeliveryError as e:
+            get_logger().warning(f"release_notes_tag: telegram failed — {e}")
+
+    def _publish_gitlab_release(self, body_markdown: str, affine_url: Optional[str]) -> None:
+        description = self._build_release_description(body_markdown, affine_url)
+        name = f"Aurora+ — что нового в версии {self.tag} ({_format_ru_date(date.today())})"
+        try:
+            create_gitlab_release(
+                gitlab_url=self.gitlab_url,
+                access_token=self.gitlab_token,
+                project_id=self.project_id,
+                tag_name=self.tag,
+                name=name,
+                description=description,
+                timeout=self.gitlab_release_timeout,
+            )
+            get_logger().info(f"release_notes_tag: gitlab release created for {self.tag}")
+        except GitLabReleaseError as e:
+            get_logger().warning(f"release_notes_tag: gitlab release failed — {e}")
+
+    # ---- entry point ----
+
+    async def run(self) -> None:
+        if os.path.exists(self._marker_path()):
+            get_logger().info(f"release_notes_tag: marker exists for {self.tag}, skipping")
+            return
+
+        get_logger().info(f"release_notes_tag: starting for tag={self.tag} prev={self.previous_tag}")
+        data = self._collect_input_data()
+        system, user = self._render_prompts(data)
+
+        markdown = await self._generate(system, user)
+        if not markdown:
+            get_logger().error("release_notes_tag: generation returned empty, aborting")
+            return
+
+        # Save raw output BEFORE publishing — so a partial failure still leaves a forensic copy
+        self._save_local(markdown)
+
+        body, tldr = extract_tg_tldr(markdown)
+
+        # Affine first — its URL is needed by both GitLab Release and Telegram
+        affine_url: Optional[str] = None
+        try:
+            affine_url = await publish_to_affine(
+                title=self.page_title, markdown=body, timeout=self.affine_timeout,
+            )
+            if affine_url:
+                get_logger().info(f"release_notes_tag: affine ok → {affine_url}")
+            else:
+                get_logger().warning("release_notes_tag: affine returned no URL")
+        except Exception as e:
+            get_logger().warning(f"release_notes_tag: affine failed — {e}")
+
+        # GitLab Release + Telegram in sequence (both are short; not worth parallel)
+        self._publish_gitlab_release(body, affine_url)
+        if tldr:
+            self._publish_telegram(tldr, affine_url)
+        else:
+            get_logger().warning("release_notes_tag: no TG_TLDR block found, telegram skipped")
+
+        self._write_marker()
+        get_logger().info(f"release_notes_tag: completed for {self.tag}")

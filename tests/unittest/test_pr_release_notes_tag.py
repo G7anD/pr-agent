@@ -163,3 +163,138 @@ class TestPRReleaseNotesTagGeneration:
 
         assert md == "# OK"
         assert calls == [t.primary_model, t.fallback_model]
+
+
+SAMPLE_GENERATED_MD = """# Aurora+ — что нового в версии 2026.06.7 (8 июня 2026)
+
+**Общее описание:** Обновления в вакцинации.
+
+## Основные направления
+### 💉 Вакцинация
+- Новое поле "серия"
+
+## Рекомендации после обновления
+### Для администраторов
+- Дополнительных действий не требуется.
+
+<!-- TG_TLDR_START -->
+🚀 Aurora+ 2026.06.7
+
+💉 Обновлён модуль вакцинации
+
+[Подробнее]({{ AFFINE_URL_PLACEHOLDER }})
+<!-- TG_TLDR_END -->
+"""
+
+
+# Import at top — needed for class-level patches below
+from pr_agent.tools.utils.telegram_publisher import TelegramPublisher, TelegramDeliveryError
+
+
+class TestPRReleaseNotesTagRun:
+    @pytest.mark.asyncio
+    async def test_run_publishes_to_all_three_destinations(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+        monkeypatch.setenv("TELEGRAM_RELEASE_CHANNEL_ID", "-1003985660672")
+
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="2026.06.7", previous_tag="2026.06.6", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech",
+                gitlab_token="tok",
+            )
+            t.output_dir = str(tmp_path)
+
+            async def fake_completion(model, system, user, temperature):
+                return (SAMPLE_GENERATED_MD, "stop")
+            t.ai_handler.chat_completion = fake_completion
+
+            calls = {"affine": 0, "gitlab": 0, "telegram": 0}
+
+            async def fake_affine(title, markdown, timeout):
+                calls["affine"] += 1
+                return "https://aff.caretech.uz/doc/abc"
+
+            def fake_gitlab_release(**kw):
+                calls["gitlab"] += 1
+                # Ensure description has body but not the TLDR block
+                assert "TG_TLDR_START" not in kw["description"]
+                assert "Aurora+ — что нового" in kw["description"]
+                # Affine link injected at top
+                assert "aff.caretech.uz/doc/abc" in kw["description"]
+                return {"tag_name": kw["tag_name"]}
+
+            def fake_send(self, chat_id, text, parse_mode, disable_web_page_preview):
+                calls["telegram"] += 1
+                # Real Affine URL replaced
+                assert "AFFINE_URL_PLACEHOLDER" not in text
+                assert "https://aff.caretech.uz/doc/abc" in text
+                # TLDR header should appear
+                assert "🚀 Aurora+" in text
+                return {"message_id": 99}
+
+            with patch("pr_agent.tools.pr_release_notes_tag.publish_to_affine", new=fake_affine), \
+                 patch("pr_agent.tools.pr_release_notes_tag.create_gitlab_release", new=fake_gitlab_release), \
+                 patch.object(TelegramPublisher, "send_message", new=fake_send):
+                await t.run()
+
+        assert calls == {"affine": 1, "gitlab": 1, "telegram": 1}
+        # Idempotency marker written
+        assert (tmp_path / ".published-2026.06.7").exists()
+        # Local markdown backup written
+        assert (tmp_path / "2026.06.7.md").exists()
+
+    @pytest.mark.asyncio
+    async def test_run_continues_when_telegram_fails(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+        monkeypatch.setenv("TELEGRAM_RELEASE_CHANNEL_ID", "-1003985660672")
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="2026.06.7", previous_tag="2026.06.6", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech",
+                gitlab_token="tok",
+            )
+            t.output_dir = str(tmp_path)
+
+            async def fake_completion(model, system, user, temperature):
+                return (SAMPLE_GENERATED_MD, "stop")
+            t.ai_handler.chat_completion = fake_completion
+
+            async def fake_affine(title, markdown, timeout):
+                return "https://aff.caretech.uz/doc/abc"
+            def fake_gitlab_release(**kw):
+                return {"tag_name": kw["tag_name"]}
+            def fake_send(self, chat_id, text, parse_mode, disable_web_page_preview):
+                raise TelegramDeliveryError("chat not found")
+
+            with patch("pr_agent.tools.pr_release_notes_tag.publish_to_affine", new=fake_affine), \
+                 patch("pr_agent.tools.pr_release_notes_tag.create_gitlab_release", new=fake_gitlab_release), \
+                 patch.object(TelegramPublisher, "send_message", new=fake_send):
+                # Should NOT raise
+                await t.run()
+
+        # Marker still written — Telegram is best-effort
+        assert (tmp_path / ".published-2026.06.7").exists()
+
+    @pytest.mark.asyncio
+    async def test_run_skips_when_marker_exists(self, tmp_path):
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="2026.06.7", previous_tag="2026.06.6", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech",
+                gitlab_token="tok",
+            )
+            t.output_dir = str(tmp_path)
+            (tmp_path / ".published-2026.06.7").write_text("")
+
+            ai_called = []
+            async def fake_completion(*a, **kw):
+                ai_called.append(1)
+                return ("nope", "stop")
+            t.ai_handler.chat_completion = fake_completion
+
+            await t.run()
+        assert ai_called == [], "AI must not be called when marker exists"
