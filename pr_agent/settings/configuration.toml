@@ -397,3 +397,20 @@ affine_workspace_id = ""
 local_output_dir = "/app/release_notes_output"
 # Timeout (seconds) for affine-cli upload. If exceeded, MR comment fallback is used.
 timeout_seconds_affine = 60
+
+# --- Tag-based release notes (per-tag, called from CI pipeline) ---
+[release_notes]
+secret_env = "RELEASE_NOTES_SECRET"
+output_dir = "/app/release_notes_output"
+model = "claude-code/claude-opus-4-7"
+fallback_model = "claude-code/claude-opus-4-6"
+timeout_seconds_affine = 60
+gitlab_release_timeout = 30
+telegram_timeout = 10
+
+[release_notes.telegram]
+bot_token_env = "TELEGRAM_BOT_TOKEN"
+channel_id_env = "TELEGRAM_RELEASE_CHANNEL_ID"
+
+[release_notes.extra_instructions]
+content = ""

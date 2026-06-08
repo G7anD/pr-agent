@@ -21,6 +21,7 @@ from pr_agent.git_providers.utils import apply_repo_settings
 from pr_agent.log import LoggingFormat, get_logger, setup_logger
 from pr_agent.secret_providers import get_secret_provider
 from pr_agent.git_providers import get_git_provider_with_context
+from pr_agent.servers.release_notes_endpoint import router as release_notes_router
 
 setup_logger(fmt=LoggingFormat.JSON, level=get_settings().get("CONFIG.LOG_LEVEL", "DEBUG"))
 router = APIRouter()
@@ -308,6 +309,7 @@ get_settings().config.git_provider = "gitlab"
 middleware = [Middleware(RawContextMiddleware)]
 app = FastAPI(middleware=middleware)
 app.include_router(router)
+app.include_router(release_notes_router)
 
 
 def start():
