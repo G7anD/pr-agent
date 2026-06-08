@@ -227,11 +227,16 @@ class TestPRReleaseNotesTagRun:
 
             def fake_send(self, chat_id, text, parse_mode, disable_web_page_preview):
                 calls["telegram"] += 1
-                # Real Affine URL replaced
+                # parse_mode must be MarkdownV2 per design
+                assert parse_mode == "MarkdownV2", f"expected MarkdownV2, got {parse_mode}"
+                # Real Affine URL replaced (not the placeholder)
                 assert "AFFINE_URL_PLACEHOLDER" not in text
+                # The Markdown link line is preserved unescaped, so the URL appears as-is
                 assert "https://aff.caretech.uz/doc/abc" in text
-                # TLDR header should appear
-                assert "🚀 Aurora+" in text
+                # TLDR header — "+" is a MarkdownV2 special and must appear escaped
+                assert r"🚀 Aurora\+" in text, f"escaped header missing in: {text!r}"
+                # Tag itself has dots — must also be escaped
+                assert r"2026\.06\.7" in text
                 return {"message_id": 99}
 
             with patch("pr_agent.tools.pr_release_notes_tag.publish_to_affine", new=fake_affine), \

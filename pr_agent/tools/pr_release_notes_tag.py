@@ -257,18 +257,26 @@ class PRReleaseNotesTag:
             get_logger().warning("release_notes_tag: telegram env vars missing, skipping")
             return
         text = replace_affine_placeholder(tldr, affine_url)
-        # The TL;DR block is authored by Claude using simple Markdown (a single
-        # link at the bottom). We send it as-is and rely on the Telegram
-        # "Markdown" parse mode rather than the stricter MarkdownV2, since the
-        # version tag (e.g. "2026.06.7") and headline punctuation would
-        # otherwise require pervasive backslash escaping that distorts the
-        # human-visible text.
+        # MarkdownV2 escape note: the TL;DR text from Claude may contain literal
+        # special chars (e.g. tag "2026.06.7" has dots that MUST be escaped).
+        # The Markdown link `[Подробнее](url)` should NOT be escaped — Telegram
+        # treats it as a link construct. So we escape line-by-line, skipping
+        # lines that are entirely a link.
+        escaped_lines = []
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith(")") and "](" in stripped:
+                escaped_lines.append(line)
+            else:
+                escaped_lines.append(escape_markdown_v2(line))
+        escaped = "\n".join(escaped_lines)
+
         pub = TelegramPublisher(bot_token=bot_token, timeout=self.telegram_timeout)
         try:
             pub.send_message(
                 chat_id=chat_id,
-                text=text,
-                parse_mode="Markdown",
+                text=escaped,
+                parse_mode="MarkdownV2",
                 disable_web_page_preview=False,
             )
             get_logger().info(f"release_notes_tag: telegram delivered to {chat_id}")
