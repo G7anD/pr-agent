@@ -407,6 +407,9 @@ fallback_model = "claude-code/claude-opus-4-6"
 timeout_seconds_affine = 60
 gitlab_release_timeout = 30
 telegram_timeout = 10
+banner_service_url_env = "BANNER_SERVICE_URL"
+banner_public_base = "https://pra.caretech.uz"
+banner_timeout = 30
 
 [release_notes.telegram]
 bot_token_env = "TELEGRAM_BOT_TOKEN"
