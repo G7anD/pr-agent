@@ -44,9 +44,16 @@ def extract_tg_tldr(markdown: str) -> Tuple[str, Optional[str]]:
 def replace_affine_placeholder(text: str, affine_url: Optional[str]) -> str:
     """Replace `{{ AFFINE_URL_PLACEHOLDER }}` with the real URL.
 
-    If `affine_url` is None (Affine publishing failed), remove the whole
-    `[...]({{ ... }})` link line so we don't ship a broken Telegram link.
+    If `affine_url` is None (Affine publishing failed):
+    - Remove the entire `[text]({{ AFFINE_URL_PLACEHOLDER }})` link line so no broken
+      link ships to Telegram.
+    - Also scrub any remaining bare placeholders that appear outside a link wrapper,
+      so the literal Jinja-style token never reaches downstream destinations.
     """
     if affine_url is None:
-        return _PLACEHOLDER_LINE_RE.sub("", text).rstrip() + "\n" if _PLACEHOLDER_LINE_RE.search(text) else text
+        without_link = _PLACEHOLDER_LINE_RE.sub("", text)
+        without_bare = _PLACEHOLDER_RE.sub("", without_link)
+        if without_bare == text:
+            return text
+        return without_bare.rstrip() + "\n"
     return _PLACEHOLDER_RE.sub(affine_url, text)

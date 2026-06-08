@@ -67,9 +67,22 @@ class TestReplaceAffinePlaceholder:
         assert replace_affine_placeholder(text, "https://x") == text
 
     def test_none_url_removes_placeholder_link_entirely(self):
-        """When Affine failed and url is None, replace placeholder with fallback text."""
+        """When Affine failed and url is None, the entire link line is removed (no broken link goes to Telegram)."""
         text = "Foo\n[Подробнее]({{ AFFINE_URL_PLACEHOLDER }})\nBar"
         out = replace_affine_placeholder(text, None)
         # The placeholder line is removed entirely (no broken link in Telegram)
         assert "{{ AFFINE_URL_PLACEHOLDER }}" not in out
         assert "[Подробнее]" not in out
+
+    def test_none_url_scrubs_bare_placeholder_outside_link(self):
+        """If a placeholder appears unwrapped (no [..]() around it),
+        None URL should still scrub it — never ship the literal Jinja token."""
+        text = "See {{ AFFINE_URL_PLACEHOLDER }} for details"
+        out = replace_affine_placeholder(text, None)
+        assert "{{ AFFINE_URL_PLACEHOLDER }}" not in out
+        assert "AFFINE_URL_PLACEHOLDER" not in out
+
+    def test_none_url_no_placeholder_returns_text_unchanged(self):
+        """Make sure the None-url path doesn't gratuitously mutate text without a placeholder."""
+        text = "Just some text, no placeholder."
+        assert replace_affine_placeholder(text, None) == text
