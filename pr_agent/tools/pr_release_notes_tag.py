@@ -103,7 +103,7 @@ class PRReleaseNotesTag:
         )
         self.banner_timeout = int(get_settings().release_notes.get("banner_timeout", 30))
 
-        self.page_title = f"Release {self.tag} — {_format_ru_date(date.today())}"
+        self.page_title = f"Aurora+ — что нового в версии {self.tag} ({_format_ru_date(date.today())})"
 
     # ---- data collection ----
 

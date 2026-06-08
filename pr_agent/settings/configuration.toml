@@ -402,8 +402,8 @@ timeout_seconds_affine = 60
 [release_notes]
 secret_env = "RELEASE_NOTES_SECRET"
 output_dir = "/app/release_notes_output"
-model = "claude-code/claude-opus-4-7"
-fallback_model = "claude-code/claude-opus-4-6"
+model = "claude-code/claude-opus-4-8"
+fallback_model = "claude-code/claude-opus-4-7"
 timeout_seconds_affine = 60
 gitlab_release_timeout = 30
 telegram_timeout = 10
