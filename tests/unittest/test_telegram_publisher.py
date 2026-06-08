@@ -76,3 +76,60 @@ class TestTelegramPublisher:
             pub = TelegramPublisher(bot_token="123:abc")
             with pytest.raises(TelegramDeliveryError, match="connection refused"):
                 pub.send_message(chat_id="-100xyz", text="hi")
+
+
+class TestSendPhoto:
+    def test_send_photo_posts_multipart(self):
+        from pr_agent.tools.utils.telegram_publisher import TelegramPublisher
+        with patch("pr_agent.tools.utils.telegram_publisher.request.urlopen") as urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps(
+                {"ok": True, "result": {"message_id": 7}}
+            ).encode()
+            urlopen.return_value.__enter__.return_value = mock_resp
+
+            pub = TelegramPublisher(bot_token="123:abc")
+            result = pub.send_photo(
+                chat_id="-100xyz",
+                photo_bytes=b"\x89PNGDATA",
+                caption="hello",
+                parse_mode="MarkdownV2",
+            )
+
+            assert result["message_id"] == 7
+            req = urlopen.call_args[0][0]
+            assert req.full_url == "https://api.telegram.org/bot123:abc/sendPhoto"
+            ctype = req.headers["Content-type"]
+            assert ctype.startswith("multipart/form-data; boundary=")
+            body = req.data
+            assert b'name="chat_id"' in body
+            assert b"-100xyz" in body
+            assert b'name="caption"' in body
+            assert b"hello" in body
+            assert b'name="parse_mode"' in body
+            assert b"MarkdownV2" in body
+            assert b'name="photo"; filename=' in body
+            assert b"\x89PNGDATA" in body
+
+    def test_send_photo_without_caption_omits_caption_field(self):
+        from pr_agent.tools.utils.telegram_publisher import TelegramPublisher
+        with patch("pr_agent.tools.utils.telegram_publisher.request.urlopen") as urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps({"ok": True, "result": {"message_id": 9}}).encode()
+            urlopen.return_value.__enter__.return_value = mock_resp
+            pub = TelegramPublisher(bot_token="123:abc")
+            pub.send_photo(chat_id="-100xyz", photo_bytes=b"PNG")
+            body = urlopen.call_args[0][0].data
+            assert b'name="caption"' not in body
+
+    def test_send_photo_raises_on_api_failure(self):
+        from pr_agent.tools.utils.telegram_publisher import TelegramPublisher, TelegramDeliveryError
+        with patch("pr_agent.tools.utils.telegram_publisher.request.urlopen") as urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps(
+                {"ok": False, "description": "PHOTO_INVALID_DIMENSIONS"}
+            ).encode()
+            urlopen.return_value.__enter__.return_value = mock_resp
+            pub = TelegramPublisher(bot_token="123:abc")
+            with pytest.raises(TelegramDeliveryError, match="PHOTO_INVALID_DIMENSIONS"):
+                pub.send_photo(chat_id="-100xyz", photo_bytes=b"PNG")
