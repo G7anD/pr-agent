@@ -72,3 +72,58 @@ class TelegramPublisher:
                 data.get("description") or "telegram sendMessage failed"
             )
         return data.get("result", {})
+
+    def send_photo(
+        self,
+        chat_id: str,
+        photo_bytes: bytes,
+        caption: Optional[str] = None,
+        parse_mode: str = "MarkdownV2",
+        disable_notification: bool = False,
+        filename: str = "banner.png",
+    ) -> dict:
+        """Send a photo via multipart/form-data sendPhoto.
+
+        Hand-rolled multipart (stdlib only) — no `requests` dependency. The
+        boundary is a fixed unusual token; PNG bytes will not contain it.
+        """
+        boundary = "----AuroraBannerBoundary7MA4YWxkTrZu0gW"
+        crlf = b"\r\n"
+        parts: list[bytes] = []
+
+        def add_field(name: str, value: str) -> None:
+            parts.append(f"--{boundary}".encode() + crlf)
+            parts.append(f'Content-Disposition: form-data; name="{name}"'.encode() + crlf + crlf)
+            parts.append(value.encode("utf-8") + crlf)
+
+        add_field("chat_id", str(chat_id))
+        if caption is not None:
+            add_field("caption", caption)
+            add_field("parse_mode", parse_mode)
+        if disable_notification:
+            add_field("disable_notification", "true")
+
+        # file part
+        parts.append(f"--{boundary}".encode() + crlf)
+        parts.append(
+            f'Content-Disposition: form-data; name="photo"; filename="{filename}"'.encode() + crlf
+        )
+        parts.append(b"Content-Type: image/png" + crlf + crlf)
+        parts.append(photo_bytes + crlf)
+        parts.append(f"--{boundary}--".encode() + crlf)
+
+        body = b"".join(parts)
+        req = request.Request(
+            f"{self.base_url}/sendPhoto",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(req, timeout=self.timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise TelegramDeliveryError(str(exc)) from exc
+        if not data.get("ok"):
+            raise TelegramDeliveryError(data.get("description") or "telegram sendPhoto failed")
+        return data.get("result", {})

@@ -23,6 +23,7 @@ from pr_agent.algo.token_handler import TokenHandler
 from pr_agent.config_loader import get_settings
 from pr_agent.log import get_logger
 from pr_agent.tools.utils.affine_publisher import publish_to_affine
+from pr_agent.tools.utils.banner_client import fetch_banner
 from pr_agent.tools.utils.gitlab_release_publisher import create_gitlab_release, GitLabReleaseError
 from pr_agent.tools.utils.telegram_publisher import TelegramPublisher, TelegramDeliveryError, escape_markdown_v2
 from pr_agent.tools.utils.tg_tldr import extract_tg_tldr, replace_affine_placeholder
@@ -43,6 +44,26 @@ def _format_ru_date(dt) -> str:
         except Exception:
             return dt
     return f"{dt.day} {RU_MONTHS[dt.month - 1]} {dt.year}"
+
+
+def _insert_banner_after_h1(markdown: str, banner_url: str) -> str:
+    """Insert a banner image line right after the first H1 (`# `) line.
+
+    If there is no H1, prepend the image to the document.
+    """
+    image_md = f"![Aurora+ release]({banner_url})"
+    lines = markdown.split("\n")
+    out = []
+    inserted = False
+    for line in lines:
+        out.append(line)
+        if not inserted and line.startswith("# "):
+            out.append("")
+            out.append(image_md)
+            inserted = True
+    if not inserted:
+        return f"{image_md}\n\n{markdown}"
+    return "\n".join(out)
 
 
 class PRReleaseNotesTag:
@@ -73,6 +94,14 @@ class PRReleaseNotesTag:
         self.affine_timeout = int(get_settings().release_notes.get("timeout_seconds_affine", 60))
         self.gitlab_release_timeout = int(get_settings().release_notes.get("gitlab_release_timeout", 30))
         self.telegram_timeout = int(get_settings().release_notes.get("telegram_timeout", 10))
+
+        self.banner_service_url = os.environ.get(
+            get_settings().release_notes.get("banner_service_url_env", "BANNER_SERVICE_URL"), ""
+        )
+        self.banner_public_base = get_settings().release_notes.get(
+            "banner_public_base", "https://pra.caretech.uz"
+        )
+        self.banner_timeout = int(get_settings().release_notes.get("banner_timeout", 30))
 
         self.page_title = f"Release {self.tag} — {_format_ru_date(date.today())}"
 
@@ -242,6 +271,34 @@ class PRReleaseNotesTag:
             get_logger().warning(f"release_notes_tag: local save failed — {e}")
             return None
 
+    def _prepare_banner(self) -> tuple[Optional[bytes], Optional[str]]:
+        """Fetch the banner PNG from banner-service, save it to the banners dir,
+        and return (png_bytes, public_url). Either element may be None:
+        - (None, None)  → no banner at all (service unset/failed)
+        - (bytes, None) → got bytes (Telegram OK) but couldn't persist for a URL
+        """
+        if not self.banner_service_url:
+            get_logger().info("release_notes_tag: BANNER_SERVICE_URL unset, skipping banner")
+            return None, None
+        png = fetch_banner(
+            self.banner_service_url, old=self.previous_tag, new=self.tag,
+            lang="ru", timeout=self.banner_timeout,
+        )
+        if not png:
+            return None, None
+        try:
+            banners_dir = os.path.join(self.output_dir, "banners")
+            os.makedirs(banners_dir, exist_ok=True)
+            path = os.path.join(banners_dir, f"{self.tag}.png")
+            with open(path, "wb") as f:
+                f.write(png)
+            get_logger().info(f"release_notes_tag: banner saved at {path}")
+        except Exception as e:
+            get_logger().warning(f"release_notes_tag: banner save failed — {e}")
+            return png, None
+        banner_url = f"{self.banner_public_base.rstrip('/')}/banner/{self.tag}.png"
+        return png, banner_url
+
     # ---- publishing ----
 
     @staticmethod
@@ -250,18 +307,14 @@ class PRReleaseNotesTag:
             return f"> 📄 [Полная версия в Affine]({affine_url})\n\n{body_markdown}"
         return body_markdown
 
-    def _publish_telegram(self, tldr: str, affine_url: Optional[str]) -> None:
+    def _publish_telegram(self, tldr: str, affine_url: Optional[str], banner_bytes: Optional[bytes] = None) -> None:
         bot_token = os.environ.get(get_settings().release_notes.telegram.bot_token_env)
         chat_id = os.environ.get(get_settings().release_notes.telegram.channel_id_env)
         if not bot_token or not chat_id:
             get_logger().warning("release_notes_tag: telegram env vars missing, skipping")
             return
         text = replace_affine_placeholder(tldr, affine_url)
-        # MarkdownV2 escape note: the TL;DR text from Claude may contain literal
-        # special chars (e.g. tag "2026.06.7" has dots that MUST be escaped).
-        # The Markdown link `[Подробнее](url)` should NOT be escaped — Telegram
-        # treats it as a link construct. So we escape line-by-line, skipping
-        # lines that are entirely a link.
+        # MarkdownV2 escape line-by-line, skipping pure-link lines (see send_message note).
         escaped_lines = []
         for line in text.split("\n"):
             stripped = line.strip()
@@ -273,12 +326,18 @@ class PRReleaseNotesTag:
 
         pub = TelegramPublisher(bot_token=bot_token, timeout=self.telegram_timeout)
         try:
-            pub.send_message(
-                chat_id=chat_id,
-                text=escaped,
-                parse_mode="MarkdownV2",
-                disable_web_page_preview=False,
-            )
+            if banner_bytes:
+                # Telegram photo caption limit is 1024 chars.
+                if len(escaped) <= 1024:
+                    pub.send_photo(chat_id=chat_id, photo_bytes=banner_bytes,
+                                   caption=escaped, parse_mode="MarkdownV2")
+                else:
+                    pub.send_photo(chat_id=chat_id, photo_bytes=banner_bytes)
+                    pub.send_message(chat_id=chat_id, text=escaped,
+                                     parse_mode="MarkdownV2", disable_web_page_preview=False)
+            else:
+                pub.send_message(chat_id=chat_id, text=escaped,
+                                 parse_mode="MarkdownV2", disable_web_page_preview=False)
             get_logger().info(f"release_notes_tag: telegram delivered to {chat_id}")
         except TelegramDeliveryError as e:
             get_logger().warning(f"release_notes_tag: telegram failed — {e}")
@@ -321,11 +380,17 @@ class PRReleaseNotesTag:
 
         body, tldr = extract_tg_tldr(markdown)
 
+        # Banner (best-effort): fetch PNG, save it, compute public URL
+        banner_bytes, banner_url = self._prepare_banner()
+
+        # Embed banner image after the H1 for Affine + GitLab Release
+        body_for_docs = _insert_banner_after_h1(body, banner_url) if banner_url else body
+
         # Affine first — its URL is needed by both GitLab Release and Telegram
         affine_url: Optional[str] = None
         try:
             affine_url = await publish_to_affine(
-                title=self.page_title, markdown=body, timeout=self.affine_timeout,
+                title=self.page_title, markdown=body_for_docs, timeout=self.affine_timeout,
             )
             if affine_url:
                 get_logger().info(f"release_notes_tag: affine ok → {affine_url}")
@@ -334,10 +399,10 @@ class PRReleaseNotesTag:
         except Exception as e:
             get_logger().warning(f"release_notes_tag: affine failed — {e}")
 
-        # GitLab Release + Telegram in sequence (both are short; not worth parallel)
-        self._publish_gitlab_release(body, affine_url)
+        # GitLab Release + Telegram
+        self._publish_gitlab_release(body_for_docs, affine_url)
         if tldr:
-            self._publish_telegram(tldr, affine_url)
+            self._publish_telegram(tldr, affine_url, banner_bytes)
         else:
             get_logger().warning("release_notes_tag: no TG_TLDR block found, telegram skipped")
 

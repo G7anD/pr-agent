@@ -303,3 +303,127 @@ class TestPRReleaseNotesTagRun:
 
             await t.run()
         assert ai_called == [], "AI must not be called when marker exists"
+
+
+class TestInsertBannerAfterH1:
+    def test_inserts_image_after_h1(self):
+        from pr_agent.tools.pr_release_notes_tag import _insert_banner_after_h1
+        md = "# Aurora+ — версия 26.6.1\n\n**Общее описание:** текст\n"
+        out = _insert_banner_after_h1(md, "https://pra.caretech.uz/banner/26.6.1.png")
+        lines = out.split("\n")
+        assert lines[0] == "# Aurora+ — версия 26.6.1"
+        assert "![Aurora+ release](https://pra.caretech.uz/banner/26.6.1.png)" in out
+        assert out.index("![Aurora+ release]") < out.index("**Общее описание:**")
+
+    def test_prepends_when_no_h1(self):
+        from pr_agent.tools.pr_release_notes_tag import _insert_banner_after_h1
+        md = "no header here\njust text"
+        out = _insert_banner_after_h1(md, "https://x/b.png")
+        assert out.startswith("![Aurora+ release](https://x/b.png)")
+        assert "no header here" in out
+
+    def test_only_first_h1_gets_banner(self):
+        from pr_agent.tools.pr_release_notes_tag import _insert_banner_after_h1
+        md = "# First\ntext\n# Second\nmore"
+        out = _insert_banner_after_h1(md, "https://x/b.png")
+        assert out.count("![Aurora+ release]") == 1
+        assert out.index("![Aurora+ release]") < out.index("# Second")
+
+
+class TestPRReleaseNotesTagBanner:
+    @pytest.mark.asyncio
+    async def test_run_with_banner_sends_photo_and_embeds_url(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+        monkeypatch.setenv("TELEGRAM_RELEASE_CHANNEL_ID", "-1003985660672")
+        monkeypatch.setenv("BANNER_SERVICE_URL", "http://172.17.0.1:41928")
+
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="26.6.1", previous_tag="2026.06.10", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech", gitlab_token="tok",
+            )
+            t.output_dir = str(tmp_path)
+
+            async def fake_completion(model, system, user, temperature):
+                return (SAMPLE_GENERATED_MD, "stop")
+            t.ai_handler.chat_completion = fake_completion
+
+            captured = {}
+
+            async def fake_affine(title, markdown, timeout):
+                captured["affine_md"] = markdown
+                return "https://aff.caretech.uz/doc/abc"
+
+            def fake_gitlab_release(**kw):
+                captured["gitlab_desc"] = kw["description"]
+                return {"tag_name": kw["tag_name"]}
+
+            def fake_send_photo(self, chat_id, photo_bytes, caption=None, parse_mode="MarkdownV2", **kw):
+                captured["photo_bytes"] = photo_bytes
+                captured["photo_caption"] = caption
+                return {"message_id": 1}
+
+            def fake_fetch_banner(service_url, old, new, lang="ru", timeout=30):
+                captured["fetch_args"] = (service_url, old, new)
+                return b"\x89PNGBANNER"
+
+            with patch("pr_agent.tools.pr_release_notes_tag.publish_to_affine", new=fake_affine), \
+                 patch("pr_agent.tools.pr_release_notes_tag.create_gitlab_release", new=fake_gitlab_release), \
+                 patch("pr_agent.tools.pr_release_notes_tag.fetch_banner", new=fake_fetch_banner), \
+                 patch.object(TelegramPublisher, "send_photo", new=fake_send_photo):
+                await t.run()
+
+        assert captured["fetch_args"] == ("http://172.17.0.1:41928", "2026.06.10", "26.6.1")
+        assert (tmp_path / "banners" / "26.6.1.png").read_bytes() == b"\x89PNGBANNER"
+        assert captured["photo_bytes"] == b"\x89PNGBANNER"
+        assert "🚀 Aurora" in captured["photo_caption"]
+        assert "![Aurora+ release](https://pra.caretech.uz/banner/26.6.1.png)" in captured["affine_md"]
+        assert "![Aurora+ release](https://pra.caretech.uz/banner/26.6.1.png)" in captured["gitlab_desc"]
+
+    @pytest.mark.asyncio
+    async def test_run_without_banner_falls_back_to_message(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+        monkeypatch.setenv("TELEGRAM_RELEASE_CHANNEL_ID", "-1003985660672")
+        monkeypatch.setenv("BANNER_SERVICE_URL", "http://172.17.0.1:41928")
+
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="26.6.1", previous_tag="2026.06.10", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech", gitlab_token="tok",
+            )
+            t.output_dir = str(tmp_path)
+
+            async def fake_completion(model, system, user, temperature):
+                return (SAMPLE_GENERATED_MD, "stop")
+            t.ai_handler.chat_completion = fake_completion
+
+            sent = {"photo": 0, "message": 0}
+
+            async def fake_affine(title, markdown, timeout):
+                sent["affine_md"] = markdown
+                return "https://aff.caretech.uz/doc/abc"
+            def fake_gitlab_release(**kw):
+                sent["gitlab_desc"] = kw["description"]
+                return {"tag_name": kw["tag_name"]}
+            def fake_send_photo(self, *a, **kw):
+                sent["photo"] += 1
+                return {"message_id": 1}
+            def fake_send_message(self, *a, **kw):
+                sent["message"] += 1
+                return {"message_id": 2}
+            def fake_fetch_banner(service_url, old, new, lang="ru", timeout=30):
+                return None
+
+            with patch("pr_agent.tools.pr_release_notes_tag.publish_to_affine", new=fake_affine), \
+                 patch("pr_agent.tools.pr_release_notes_tag.create_gitlab_release", new=fake_gitlab_release), \
+                 patch("pr_agent.tools.pr_release_notes_tag.fetch_banner", new=fake_fetch_banner), \
+                 patch.object(TelegramPublisher, "send_photo", new=fake_send_photo), \
+                 patch.object(TelegramPublisher, "send_message", new=fake_send_message):
+                await t.run()
+
+        assert sent["photo"] == 0
+        assert sent["message"] == 1
+        assert "![Aurora+ release]" not in sent["affine_md"]
+        assert "![Aurora+ release]" not in sent["gitlab_desc"]

@@ -65,3 +65,29 @@ def test_skips_when_marker_exists(client, tmp_path):
     )
     assert r.status_code == 200
     assert r.json()["status"] == "already_published"
+
+
+def test_serve_banner_returns_png(client, tmp_path):
+    banners = tmp_path / "banners"
+    banners.mkdir()
+    (banners / "26.6.1.png").write_bytes(b"\x89PNG\r\n\x1a\nDATA")
+    r = client.get("/banner/26.6.1.png")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert r.content == b"\x89PNG\r\n\x1a\nDATA"
+
+
+def test_serve_banner_404_when_missing(client, tmp_path):
+    r = client.get("/banner/nope.png")
+    assert r.status_code == 404
+
+
+def test_serve_banner_rejects_path_traversal(client, tmp_path):
+    r = client.get("/banner/..%2f..%2fetc%2fpasswd")
+    assert r.status_code in (400, 404)
+
+
+def test_serve_banner_rejects_non_png(client, tmp_path):
+    (tmp_path / "secret.txt").write_text("x")
+    r = client.get("/banner/secret.txt")
+    assert r.status_code == 400

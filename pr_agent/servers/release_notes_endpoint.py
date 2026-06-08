@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from pr_agent.config_loader import get_settings
 from pr_agent.log import get_logger
@@ -72,3 +72,22 @@ async def generate_release_notes(request: Request) -> JSONResponse:
         run_release_notes_tag(tag=tag, previous_tag=previous_tag, project_id=project_id)
     )
     return JSONResponse({"status": "accepted", "tag": tag}, status_code=202)
+
+
+@router.get("/banner/{filename}")
+async def serve_banner(filename: str):
+    """Public (no-auth) static serve of a generated release banner PNG.
+
+    Used by Affine and GitLab Release to render the banner image. Only serves
+    `*.png` basenames from the banners dir — rejects any path-traversal.
+    """
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "bad filename"}, status_code=400)
+    if not filename.endswith(".png"):
+        return JSONResponse({"error": "only .png served"}, status_code=400)
+
+    banners_dir = Path(get_settings().release_notes.output_dir) / "banners"
+    path = banners_dir / filename
+    if not path.is_file():
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return FileResponse(str(path), media_type="image/png")
