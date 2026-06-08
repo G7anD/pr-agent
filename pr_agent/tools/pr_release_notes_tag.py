@@ -188,3 +188,34 @@ class PRReleaseNotesTag:
                 f"- !{iid} «{title}» — {author}\n  URL: {url}\n  Описание: {desc_short or '(пусто)'}"
             )
         return "\n\n".join(lines)
+
+    # ---- prompt + generation ----
+
+    def _render_prompts(self, vars: dict) -> tuple[str, str]:
+        env = Environment(undefined=StrictUndefined)
+        system_tpl = get_settings().pr_release_notes_tag_prompt.system
+        user_tpl = get_settings().pr_release_notes_tag_prompt.user
+        system = env.from_string(system_tpl).render(vars)
+        user = env.from_string(user_tpl).render(vars)
+        return system, user
+
+    async def _generate(self, system: str, user: str) -> Optional[str]:
+        last_error = None
+        for model in [self.primary_model, self.fallback_model]:
+            if not model:
+                continue
+            try:
+                get_logger().info(f"release_notes_tag: generating with {model}")
+                response, finish_reason = await self.ai_handler.chat_completion(
+                    model=model, system=system, user=user, temperature=0.2,
+                )
+                if response:
+                    get_logger().info(f"release_notes_tag: generation ok with {model} (finish={finish_reason})")
+                    return response
+            except Exception as e:
+                last_error = e
+                get_logger().warning(f"release_notes_tag: {model} failed — {e}")
+                continue
+        if last_error:
+            raise last_error
+        return None

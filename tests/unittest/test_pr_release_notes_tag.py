@@ -101,3 +101,65 @@ class TestPRReleaseNotesTagDataCollection:
             data = t._collect_input_data()
         assert data["mr_count"] == 0
         assert data["mrs_summary"] == "(нет MR в этом релизе)"
+
+
+class TestPRReleaseNotesTagGeneration:
+    @pytest.mark.asyncio
+    async def test_render_prompts_substitutes_vars(self):
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="2026.06.7", previous_tag="2026.06.6", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech",
+                gitlab_token="tok",
+            )
+            data = t._collect_input_data()
+            system, user = t._render_prompts(data)
+
+        assert "2026.06.7" in system  # tag substituted in output header instruction
+        assert "что нового в версии" in system  # Russian title format present
+        assert "TG_TLDR_START" in system  # TL;DR instruction present
+        assert "2026.06.7" in user  # tag in metadata
+        assert "Ilyos K." in user  # contributors
+        assert "file_a.py" in user  # full_diff included
+
+    @pytest.mark.asyncio
+    async def test_generate_returns_markdown(self):
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="2026.06.7", previous_tag="2026.06.6", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech",
+                gitlab_token="tok",
+            )
+
+            async def fake_completion(model, system, user, temperature):
+                return ("# Aurora+ — что нового\n\n<!-- TG_TLDR_START -->\n🚀 Aurora+ 2026.06.7\n[Подробнее]({{ AFFINE_URL_PLACEHOLDER }})\n<!-- TG_TLDR_END -->", "stop")
+
+            t.ai_handler.chat_completion = fake_completion
+            md = await t._generate("sys", "usr")
+
+        assert "Aurora+" in md
+        assert "TG_TLDR_START" in md
+
+    @pytest.mark.asyncio
+    async def test_generate_falls_back_to_secondary_model(self):
+        gl, proj = _fake_gitlab_client()
+        with patch("pr_agent.tools.pr_release_notes_tag.gitlab.Gitlab", return_value=gl):
+            t = PRReleaseNotesTag(
+                tag="2026.06.7", previous_tag="2026.06.6", project_id=42,
+                gitlab_url="https://gitlab.uicgroup.tech",
+                gitlab_token="tok",
+            )
+            calls = []
+            async def flaky_completion(model, system, user, temperature):
+                calls.append(model)
+                if model == t.primary_model:
+                    raise RuntimeError("primary down")
+                return ("# OK", "stop")
+            t.ai_handler.chat_completion = flaky_completion
+
+            md = await t._generate("sys", "usr")
+
+        assert md == "# OK"
+        assert calls == [t.primary_model, t.fallback_model]
