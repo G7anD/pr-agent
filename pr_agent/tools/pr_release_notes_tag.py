@@ -45,6 +45,26 @@ def _format_ru_date(dt) -> str:
     return f"{dt.day} {RU_MONTHS[dt.month - 1]} {dt.year}"
 
 
+def _insert_banner_after_h1(markdown: str, banner_url: str) -> str:
+    """Insert a banner image line right after the first H1 (`# `) line.
+
+    If there is no H1, prepend the image to the document.
+    """
+    image_md = f"![Aurora+ release]({banner_url})"
+    lines = markdown.split("\n")
+    out = []
+    inserted = False
+    for line in lines:
+        out.append(line)
+        if not inserted and line.startswith("# "):
+            out.append("")
+            out.append(image_md)
+            inserted = True
+    if not inserted:
+        return f"{image_md}\n\n{markdown}"
+    return "\n".join(out)
+
+
 class PRReleaseNotesTag:
     def __init__(
         self,

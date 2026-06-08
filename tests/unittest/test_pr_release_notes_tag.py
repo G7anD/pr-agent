@@ -303,3 +303,28 @@ class TestPRReleaseNotesTagRun:
 
             await t.run()
         assert ai_called == [], "AI must not be called when marker exists"
+
+
+class TestInsertBannerAfterH1:
+    def test_inserts_image_after_h1(self):
+        from pr_agent.tools.pr_release_notes_tag import _insert_banner_after_h1
+        md = "# Aurora+ — версия 26.6.1\n\n**Общее описание:** текст\n"
+        out = _insert_banner_after_h1(md, "https://pra.caretech.uz/banner/26.6.1.png")
+        lines = out.split("\n")
+        assert lines[0] == "# Aurora+ — версия 26.6.1"
+        assert "![Aurora+ release](https://pra.caretech.uz/banner/26.6.1.png)" in out
+        assert out.index("![Aurora+ release]") < out.index("**Общее описание:**")
+
+    def test_prepends_when_no_h1(self):
+        from pr_agent.tools.pr_release_notes_tag import _insert_banner_after_h1
+        md = "no header here\njust text"
+        out = _insert_banner_after_h1(md, "https://x/b.png")
+        assert out.startswith("![Aurora+ release](https://x/b.png)")
+        assert "no header here" in out
+
+    def test_only_first_h1_gets_banner(self):
+        from pr_agent.tools.pr_release_notes_tag import _insert_banner_after_h1
+        md = "# First\ntext\n# Second\nmore"
+        out = _insert_banner_after_h1(md, "https://x/b.png")
+        assert out.count("![Aurora+ release]") == 1
+        assert out.index("![Aurora+ release]") < out.index("# Second")
